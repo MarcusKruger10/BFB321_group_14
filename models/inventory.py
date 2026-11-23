@@ -150,3 +150,104 @@ def get_preferred_supplier(product_id):
            LIMIT 1""",
         (product_id,),
     )
+
+
+def create_product(sku, name, category_id, unit_cost, unit_price, strength=None,
+                   dosage_form="tablet", pack_size=1, service_level=0.95,
+                   reorder_point_override=None, shelf_life_days=730):
+    """Insert a product and return its new product_id.
+    A duplicate SKU raises pymysql.err.IntegrityError (API should return 409)."""
+    with transaction() as cur:
+        cur.execute(
+            """INSERT INTO products (sku, name, strength, dosage_form, pack_size, category_id,
+                                     unit_cost, unit_price, service_level,
+                                     reorder_point_override, shelf_life_days)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+            (sku, name, strength, dosage_form, pack_size, category_id, unit_cost,
+             unit_price, service_level, reorder_point_override, shelf_life_days),
+        )
+        return cur.lastrowid
+
+
+def update_reorder_settings(product_id, reorder_point_override=None, service_level=None):
+    """Pharmacist changes a product's threshold (Objective 2).
+
+    reorder_point_override: whole units, or None to go back to the
+    calculated reorder point. service_level: optional, between 0 and 1.
+    Returns the product's new position, or None if it doesn't exist."""
+    if reorder_point_override is not None and (
+            not isinstance(reorder_point_override, int) or reorder_point_override < 0):
+        raise ValueError("reorder_point_override must be a whole number >= 0, or None")
+    if service_level is not None:
+        replenishment.z_score(service_level)          # raises ValueError if not 0 < x < 1
+    with transaction() as cur:
+        cur.execute(
+            """UPDATE products
+               SET reorder_point_override = %s,
+                   service_level = COALESCE(%s, service_level)
+               WHERE product_id = %s""",
+            (reorder_point_override, service_level, product_id),
+        )
+    product = get_product(product_id)
+    if product:
+        refresh_stock_alert(product_id, product)
+    return product
+
+
+def receive_stock(product_id, supplier_id, batch_number, expiry_date, quantity,
+                  unit_cost, user_id, po_id=None):
+    """Goods receiving: create a batch and log a 'receipt' movement in one
+    transaction. Returns the new batch_id."""
+    with transaction() as cur:
+        cur.execute(
+            """INSERT INTO batches (product_id, supplier_id, po_id, batch_number, expiry_date,
+                                    quantity_received, quantity_on_hand, unit_cost)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+            (product_id, supplier_id, po_id, batch_number, expiry_date, quantity, quantity, unit_cost),
+        )
+        batch_id = cur.lastrowid
+        cur.execute(
+            """INSERT INTO stock_movements (batch_id, movement_type, quantity, reference, user_id)
+               VALUES (%s, 'receipt', %s, %s, %s)""",
+            (batch_id, quantity, f"PO-{po_id}" if po_id else "Direct receipt", user_id),
+        )
+    refresh_stock_alert(product_id)
+    return batch_id
+
+
+def dispense(product_id, quantity, user_id, reference=None):
+    """Dispense stock First-Expiry-First-Out using models/expiry.allocate_fefo.
+
+    The product's batches are locked (SELECT ... FOR UPDATE) so two staff
+    members cannot dispense the same units at once. Raises ValueError if
+    there is not enough unexpired stock; nothing changes in that case.
+    Returns the allocation list from allocate_fefo."""
+    if not isinstance(quantity, int) or quantity <= 0:
+        raise ValueError("quantity must be a whole number greater than 0")
+    with transaction() as cur:
+        cur.execute(
+            """SELECT batch_id, expiry_date, quantity_on_hand
+               FROM batches
+               WHERE product_id = %s AND quantity_on_hand > 0
+               ORDER BY expiry_date
+               FOR UPDATE""",
+            (product_id,),
+        )
+        batches = [{"batch_id": b["batch_id"], "expiry_date": b["expiry_date"],
+                    "quantity": b["quantity_on_hand"]} for b in cur.fetchall()]
+        plan = expiry.allocate_fefo(batches, quantity)
+        if plan["unfulfilled_quantity"] > 0:
+            raise ValueError(f"Only {plan['allocated_quantity']} unexpired units available")
+
+        for a in plan["allocations"]:
+            cur.execute(
+                "UPDATE batches SET quantity_on_hand = quantity_on_hand - %s WHERE batch_id = %s",
+                (a["allocated_quantity"], a["batch_id"]),
+            )
+            cur.execute(
+                """INSERT INTO stock_movements (batch_id, movement_type, quantity, reference, user_id)
+                   VALUES (%s, 'dispense', %s, %s, %s)""",
+                (a["batch_id"], a["allocated_quantity"], reference, user_id),
+            )
+    refresh_stock_alert(product_id)
+    return plan["allocations"]
