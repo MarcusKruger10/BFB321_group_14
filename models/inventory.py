@@ -342,3 +342,17 @@ def dashboard_kpis():
         "units_written_off_90d": int(flow["written_off_90d"]),
         "open_alerts": int(alerts["n"]),
     }
+
+def recent_dispenses(limit=10):
+    """Latest dispensing records for the Dispense page, newest first."""
+    return query(
+        """SELECT sm.moved_at, p.name, p.strength, sm.quantity,
+                  b.batch_number, sm.reference
+           FROM stock_movements sm
+           JOIN batches b  ON b.batch_id = sm.batch_id
+           JOIN products p ON p.product_id = b.product_id
+           WHERE sm.movement_type = 'dispense'
+           ORDER BY sm.moved_at DESC, sm.movement_id DESC
+           LIMIT %s""",
+        (limit,),
+    )

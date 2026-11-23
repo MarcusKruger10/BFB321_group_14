@@ -5,7 +5,7 @@ Run:  flask --app app run        (after: pip install -r requirements.txt,
 """
 import logging
 
-from flask import Flask, abort, render_template, request
+from flask import Flask, abort, flash, redirect, render_template, request, url_for
 
 import db
 from config import get_config
@@ -50,9 +50,31 @@ def receive():
     return render_template("receive.html")
 
 
-@app.route("/dispense")
+@app.route("/dispense", methods=["GET", "POST"])
 def dispense():
-    return render_template("dispense.html")
+    """B3 Flow 2: dispense stock FEFO, save to MySQL, show the result."""
+    if request.method == "POST":
+        try:
+            product_id = int(request.form["product_id"])
+            quantity = int(request.form["quantity"])
+            reference = request.form.get("reference") or None
+            # user_id=1 until login works (first user in seed.sql)
+            used = inventory.dispense(product_id, quantity, user_id=1, reference=reference)
+            batches = ", ".join(f"{a['allocated_quantity']} from batch {a['batch_id']}" for a in used)
+            product = inventory.get_product(product_id)
+            flash(f"Dispensed {quantity} units of {product['name']} ({batches}). "
+                  f"Stock now {product['stock_on_hand']} - status: {product['reorder_status']}.",
+                  "success")
+            if product["reorder_status"] != "Sufficient":
+                flash(f"Alert: {product['name']} is {product['reorder_status']}. "
+                      f"Recommended order: {product['recommended_order_qty']} units.", "warning")
+        except (ValueError, KeyError) as exc:
+            flash(f"Could not dispense: {exc}", "danger")
+        return redirect(url_for("dispense"))   # reload the page so the table shows the change
+
+    products, _ = inventory.list_products(limit=100)
+    return render_template("dispense.html", products=products,
+                           recent=inventory.recent_dispenses())
 
 
 @app.route("/alerts")
