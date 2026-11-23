@@ -48,3 +48,46 @@ def demand_history(product_ids, days=HISTORY_DAYS):
         if 0 <= index < days:
             history[r["product_id"]][index] = int(r["units"])  # MySQL SUM returns Decimal
     return history
+
+
+def _position(row, history):
+    """Add the replenishment model's results to one v_product_stock row."""
+    avg = demand.average_daily_demand(history)
+    std = demand.demand_standard_deviation(history)
+    lead_time = row["lead_time_days"] or 0
+    stock = int(row["stock_on_hand"])
+
+    ss = replenishment.safety_stock(std, lead_time, float(row["service_level"]))
+    calculated_rop = replenishment.reorder_point(avg, lead_time, ss)
+    rop = replenishment.effective_threshold(calculated_rop, row["reorder_point_override"])
+    status = replenishment.reorder_status(stock, rop, avg, warning_days=LOW_WARNING_DAYS)
+    order = replenishment.recommended_order_quantity(
+        avg, stock,
+        order_cost=float(row["ordering_cost"]),
+        holding_cost=float(row["holding_cost_rate"]) * float(row["unit_cost"]),
+        shelf_life_days=row["shelf_life_days"],
+        pack_size=row["pack_size"],
+    )
+    days_left = replenishment.days_of_stock(stock, avg)
+
+    result = dict(row)
+    result.update(
+        stock_on_hand=stock,
+        stock_value=float(row["stock_value"]),
+        avg_daily_demand=round(avg, 2),
+        safety_stock=math.ceil(ss),
+        calculated_reorder_point=math.ceil(calculated_rop),
+        reorder_point=math.ceil(rop),
+        override_active=row["reorder_point_override"] is not None,
+        reorder_status=status,
+        days_of_stock=None if math.isinf(days_left) else round(days_left, 1),
+        days_to_reorder_point=round((stock - rop) / avg, 1) if avg > 0 else None,
+        recommended_order_qty=order["order_quantity"],
+        eoq=round(order["eoq"], 1),
+    )
+    return result
+
+
+def _positions(rows):
+    history = demand_history(r["product_id"] for r in rows)
+    return [_position(r, history[r["product_id"]]) for r in rows]
