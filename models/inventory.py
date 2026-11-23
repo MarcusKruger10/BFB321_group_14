@@ -91,3 +91,62 @@ def _position(row, history):
 def _positions(rows):
     history = demand_history(r["product_id"] for r in rows)
     return [_position(r, history[r["product_id"]]) for r in rows]
+
+
+def list_products(category=None, status=None, search=None, limit=20, offset=0):
+    """Dashboard rows with stock, nearest expiry and model-calculated status.
+    Filters by category / search in SQL and by status after the model runs.
+    Returns (rows, total_count)."""
+    if status and status not in STATUSES:
+        raise ValueError(f"status must be one of {STATUSES}")
+    where, params = [], []
+    if category:
+        where.append("category = %s")
+        params.append(category)
+    if search:
+        where.append("(name LIKE %s OR sku LIKE %s)")
+        params += [f"%{search}%", f"%{search}%"]
+    clause = ("WHERE " + " AND ".join(where)) if where else ""
+
+    rows = _positions(query(f"SELECT * FROM v_product_stock {clause}", params))
+    if status:
+        rows = [r for r in rows if r["reorder_status"] == status]
+    rows.sort(key=lambda r: (STATUSES.index(r["reorder_status"]), r["name"]))
+    return rows[int(offset):int(offset) + int(limit)], len(rows)
+
+
+def get_product(product_id):
+    """One product with its stock position and model results, or None."""
+    row = query_one("SELECT * FROM v_product_stock WHERE product_id = %s", (product_id,))
+    return _positions([row])[0] if row else None
+
+
+def get_product_batches(product_id, include_empty=False):
+    """Batch-level detail for the drill-down view, nearest expiry first, with
+    each batch classified by models/expiry.py (expired / expiring_soon / fresh)."""
+    rows = query(
+        f"""SELECT b.batch_id, b.batch_number, b.quantity_on_hand, b.quantity_received,
+                   b.expiry_date, DATEDIFF(b.expiry_date, CURDATE()) AS days_to_expiry,
+                   b.received_at, s.name AS supplier
+            FROM batches b
+            JOIN suppliers s ON s.supplier_id = b.supplier_id
+            WHERE b.product_id = %s {'' if include_empty else 'AND b.quantity_on_hand > 0'}
+            ORDER BY b.expiry_date""",
+        (product_id,),
+    )
+    for r in rows:
+        r["expiry_class"] = expiry.classify_batch(r["expiry_date"])
+    return rows
+
+
+def get_preferred_supplier(product_id):
+    """Preferred supplier and lead time for a product (used by the reorder prompt)."""
+    return query_one(
+        """SELECT s.supplier_id, s.name, ps.lead_time_days, ps.supplier_cost
+           FROM product_suppliers ps
+           JOIN suppliers s ON s.supplier_id = ps.supplier_id
+           WHERE ps.product_id = %s
+           ORDER BY ps.is_preferred DESC, ps.lead_time_days
+           LIMIT 1""",
+        (product_id,),
+    )
