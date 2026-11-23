@@ -8,12 +8,16 @@ import logging
 from flask import Flask, abort, render_template, request
 
 import db
+from api import api_bp
+from api.errors import register_error_handlers
 from config import get_config
 from models import inventory
 
 app = Flask(__name__)
-app.config.from_object(get_config())   # settings from .env via config.py
-db.init_app(app)                       # closes the MySQL connection after every request
+app.config.from_object(get_config())   
+db.init_app(app)                       
+app.register_blueprint(api_bp)         
+register_error_handlers(app)               
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -43,8 +47,7 @@ def product_detail(product_id):
                            batches=inventory.get_product_batches(product_id))
 
 
-# The pages below are still the static Semester-Project mock-ups. Each one is
-# converted to live data by the group member who owns that flow (B2/B3).
+
 @app.route("/receive")
 def receive():
     return render_template("receive.html")
