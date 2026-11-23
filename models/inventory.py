@@ -342,3 +342,53 @@ def dashboard_kpis():
         "units_written_off_90d": int(flow["written_off_90d"]),
         "open_alerts": int(alerts["n"]),
     }
+
+def recent_dispenses(limit=10):
+    """Latest dispensing records for the Dispense page, newest first."""
+    return query(
+        """SELECT sm.moved_at, p.name, p.strength, sm.quantity,
+                  b.batch_number, sm.reference
+           FROM stock_movements sm
+           JOIN batches b  ON b.batch_id = sm.batch_id
+           JOIN products p ON p.product_id = b.product_id
+           WHERE sm.movement_type = 'dispense'
+           ORDER BY sm.moved_at DESC, sm.movement_id DESC
+           LIMIT %s""",
+        (limit,),
+    )
+
+def list_suppliers():
+    """Active suppliers for the Receive Stock dropdown."""
+    return query(
+        "SELECT supplier_id, name FROM suppliers WHERE is_active = TRUE ORDER BY name"
+    )
+
+
+def recent_receipts(limit=10):
+    """Latest stock receipts for the Receive Stock page, newest first."""
+    return query(
+        """SELECT b.received_at, p.name, p.strength, b.batch_number,
+                  b.quantity_received, b.expiry_date, s.name AS supplier
+           FROM batches b
+           JOIN products p  ON p.product_id = b.product_id
+           JOIN suppliers s ON s.supplier_id = b.supplier_id
+           ORDER BY b.received_at DESC, b.batch_id DESC
+           LIMIT %s""",
+        (limit,),
+    )
+
+def expiry_batches(warning_days=30):
+    """Every batch with stock, earliest expiry first, classified by models/expiry.py."""
+    rows = query(
+        """SELECT b.batch_id, b.batch_number, b.quantity_on_hand, b.expiry_date,
+                  b.unit_cost, DATEDIFF(b.expiry_date, CURDATE()) AS days_to_expiry,
+                  p.product_id, p.name, p.strength
+           FROM batches b
+           JOIN products p ON p.product_id = b.product_id
+           WHERE b.quantity_on_hand > 0
+           ORDER BY b.expiry_date"""
+    )
+    for r in rows:
+        r["expiry_class"] = expiry.classify_batch(r["expiry_date"], warning_days=warning_days)
+        r["value"] = round(float(r["unit_cost"]) * r["quantity_on_hand"], 2)
+    return rows
