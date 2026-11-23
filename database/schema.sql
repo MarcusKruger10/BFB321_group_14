@@ -105,3 +105,76 @@ CREATE TABLE product_suppliers (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE INDEX ix_ps_supplier ON product_suppliers (supplier_id);
+
+CREATE TABLE purchase_orders (
+    po_id          INT UNSIGNED  NOT NULL AUTO_INCREMENT,
+    po_number      VARCHAR(20)   NOT NULL,
+    supplier_id    INT UNSIGNED  NOT NULL,
+    status         ENUM('draft','ordered','received','cancelled') NOT NULL DEFAULT 'draft',
+    ordered_at     DATETIME      NULL,
+    expected_date  DATE          NULL,
+    received_at    DATETIME      NULL,
+    created_by     INT UNSIGNED  NOT NULL,
+    notes          VARCHAR(255)  NULL,
+    created_at     DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at     DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (po_id),
+    CONSTRAINT uq_po_number UNIQUE (po_number),
+    CONSTRAINT fk_po_supplier FOREIGN KEY (supplier_id)
+        REFERENCES suppliers (supplier_id) ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_po_user     FOREIGN KEY (created_by)
+        REFERENCES users (user_id)         ON UPDATE CASCADE ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE INDEX ix_po_status   ON purchase_orders (status);
+CREATE INDEX ix_po_supplier ON purchase_orders (supplier_id);
+
+CREATE TABLE purchase_order_lines (
+    po_line_id     INT UNSIGNED  NOT NULL AUTO_INCREMENT,
+    po_id          INT UNSIGNED  NOT NULL,
+    product_id     INT UNSIGNED  NOT NULL,
+    quantity       INT UNSIGNED  NOT NULL,
+    unit_cost      DECIMAL(10,2) NOT NULL,
+    created_at     DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at     DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (po_line_id),
+    CONSTRAINT uq_pol_po_product UNIQUE (po_id, product_id),
+    CONSTRAINT fk_pol_po      FOREIGN KEY (po_id)
+        REFERENCES purchase_orders (po_id) ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fk_pol_product FOREIGN KEY (product_id)
+        REFERENCES products (product_id)   ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT ck_pol_qty  CHECK (quantity > 0),
+    CONSTRAINT ck_pol_cost CHECK (unit_cost >= 0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE INDEX ix_pol_product ON purchase_order_lines (product_id);
+
+CREATE TABLE batches (
+    batch_id           INT UNSIGNED  NOT NULL AUTO_INCREMENT,
+    product_id         INT UNSIGNED  NOT NULL,
+    supplier_id        INT UNSIGNED  NOT NULL,
+    po_id              INT UNSIGNED  NULL,          -- NULL if received without a PO
+    batch_number       VARCHAR(40)   NOT NULL,      -- manufacturer lot number
+    expiry_date        DATE          NOT NULL,
+    quantity_received  INT UNSIGNED  NOT NULL,
+    quantity_on_hand   INT UNSIGNED  NOT NULL,
+    unit_cost          DECIMAL(10,2) NOT NULL,
+    received_at        DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at         DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at         DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (batch_id),
+    CONSTRAINT uq_batches_product_lot UNIQUE (product_id, batch_number),
+    CONSTRAINT fk_batches_product  FOREIGN KEY (product_id)
+        REFERENCES products (product_id)   ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_batches_supplier FOREIGN KEY (supplier_id)
+        REFERENCES suppliers (supplier_id) ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_batches_po       FOREIGN KEY (po_id)
+        REFERENCES purchase_orders (po_id) ON UPDATE CASCADE ON DELETE SET NULL,
+    CONSTRAINT ck_batches_received CHECK (quantity_received > 0),
+    CONSTRAINT ck_batches_onhand   CHECK (quantity_on_hand <= quantity_received),
+    CONSTRAINT ck_batches_cost     CHECK (unit_cost >= 0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE INDEX ix_batches_product_expiry ON batches (product_id, expiry_date);
+CREATE INDEX ix_batches_expiry         ON batches (expiry_date);
+CREATE INDEX ix_batches_supplier       ON batches (supplier_id);
