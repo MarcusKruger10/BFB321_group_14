@@ -141,7 +141,11 @@ def expiry_risk():
 
 @app.route("/kpi")
 def kpi():
-    return render_template("kpi.html")
+    """B3.3: KPIs calculated from live MySQL data and the supply chain models."""
+    kpis = inventory.dashboard_kpis()
+    products, _ = inventory.list_products(limit=100)
+    to_restock = [p for p in products if p["reorder_status"] != "Sufficient"]
+    return render_template("kpi.html", kpis=kpis, to_restock=to_restock)
 
 
 @app.route("/login")
