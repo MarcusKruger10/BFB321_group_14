@@ -376,3 +376,19 @@ def recent_receipts(limit=10):
            LIMIT %s""",
         (limit,),
     )
+
+def expiry_batches(warning_days=30):
+    """Every batch with stock, earliest expiry first, classified by models/expiry.py."""
+    rows = query(
+        """SELECT b.batch_id, b.batch_number, b.quantity_on_hand, b.expiry_date,
+                  b.unit_cost, DATEDIFF(b.expiry_date, CURDATE()) AS days_to_expiry,
+                  p.product_id, p.name, p.strength
+           FROM batches b
+           JOIN products p ON p.product_id = b.product_id
+           WHERE b.quantity_on_hand > 0
+           ORDER BY b.expiry_date"""
+    )
+    for r in rows:
+        r["expiry_class"] = expiry.classify_batch(r["expiry_date"], warning_days=warning_days)
+        r["value"] = round(float(r["unit_cost"]) * r["quantity_on_hand"], 2)
+    return rows

@@ -95,4 +95,55 @@
         </div>
     </div>
 </section>
+
+<script src="{{ url_for('static', filename='js/api.js') }}"></script>
+<script>
+// B3.2: send the form to POST /api/stock/receive and update the page without reloading
+const receiveForm = document.querySelector("form[method='post']");
+const productSelect = document.getElementById("product");
+const supplierSelect = document.getElementById("supplier");
+const recentTable = document.querySelector("table tbody");
+
+receiveForm.addEventListener("submit", async (event) => {
+    event.preventDefault();                        // stop the normal page reload
+    clearMessages();
+    const button = receiveForm.querySelector("button[type='submit']");
+    button.disabled = true;
+    try {
+        const productId = Number(productSelect.value);
+        const batchNumber = document.getElementById("batch_number").value.trim();
+        const expiryDate = document.getElementById("expiry_date").value;      // YYYY-MM-DD
+        const quantity = Number(document.getElementById("quantity").value);
+        let unitCost = document.getElementById("unit_cost").value;
+        if (unitCost === "") {
+            // Left blank: use the product's normal cost from the API
+            unitCost = (await apiRequest("GET", `/api/products/${productId}`)).unit_cost;
+        }
+
+        const result = await apiRequest("POST", "/api/stock/receive", {
+            product_id: productId,
+            supplier_id: Number(supplierSelect.value),
+            batch_number: batchNumber,
+            expiry_date: expiryDate,
+            quantity: quantity,
+            unit_cost: Number(unitCost)
+        });
+        const p = result.product;
+
+        addTableRow(recentTable, [
+            nowText(), productName(p), batchNumber, quantity, expiryDate,
+            supplierSelect.selectedOptions[0].textContent.trim()
+        ]);
+        updateProductOption(productSelect, p);
+        showMessage(`Received ${quantity} units of ${p.name} (batch ${batchNumber}, expires ${expiryDate}). Stock now ${p.stock_on_hand} - status: ${p.reorder_status}.`);
+        receiveForm.reset();
+    } catch (error) {
+        showMessage(`Could not receive stock: ${error.message}`, "danger");
+    } finally {
+        button.disabled = false;
+    }
+});
+</script>
+
 {% endblock %}
+

@@ -130,4 +130,78 @@
 </section>
 
 <a class="btn btn-outline-secondary" href="{{ url_for('dashboard') }}">← Back to dashboard</a>
+
+<script src="{{ url_for('static', filename='js/api.js') }}"></script>
+<script>
+// B3.2: send the override to PATCH /api/products/<id> and update the page without reloading
+const overrideForm = document.querySelector("form[method='post']");
+const productId = {{ product.product_id }};
+const calculatedReorderPoint = {{ product.calculated_reorder_point }};
+const supplierText = {{ ((" from " ~ supplier.name ~ " (lead time " ~ supplier.lead_time_days ~ " days)") if supplier else "") | tojson }};
+const badgeClass = { "Sufficient": "bg-success", "Low": "bg-warning text-dark", "Reorder Needed": "bg-danger" };
+
+function findCard(label) {
+    return [...document.querySelectorAll(".summary-card")]
+        .find(card => card.querySelector(".summary-label").textContent.trim() === label);
+}
+
+overrideForm.addEventListener("submit", async (event) => {
+    event.preventDefault();                        // stop the normal page reload
+    clearMessages();
+    const reset = event.submitter && event.submitter.value === "reset";
+    const input = document.getElementById("reorder_point");
+    try {
+        const value = reset ? null : Number(input.value);
+        const p = await apiRequest("PATCH", `/api/products/${productId}`, { reorder_point_override: value });
+
+        // 1. Status badge at the top
+        const badge = document.querySelector(".app-intro h1 .badge");
+        badge.textContent = p.reorder_status;
+        badge.className = `badge ${badgeClass[p.reorder_status]} align-middle fs-6`;
+
+        // 2. Reorder point card
+        const card = findCard("Reorder point");
+        card.querySelector(".summary-value").textContent = `${p.reorder_point} units`;
+        card.querySelector("small").textContent = p.override_active ? "Pharmacist override" : "Demand × lead time + safety stock";
+
+        // 3. Recommendation box
+        const heading = [...document.querySelectorAll("section.card h2")]
+            .find(h => h.textContent.trim() === "Reorder Recommendation");
+        const recBody = heading.parentElement;
+        recBody.querySelectorAll("p, small").forEach(el => el.remove());
+        const line = document.createElement("p");
+        if (p.reorder_status === "Sufficient") {
+            line.className = "mb-0";
+            line.textContent = "Stock is sufficient. No order is needed right now.";
+        } else {
+            line.className = "fs-5 mb-1";
+            line.textContent = `Order ${p.recommended_order_qty} units${supplierText}.`;
+        }
+        recBody.appendChild(line);
+        recBody.parentElement.classList.toggle("border-danger", p.reorder_status === "Reorder Needed");
+
+        // 4. Override text, input box and "Use model value" button
+        overrideForm.previousElementSibling.innerHTML =
+            `The model calculated <strong>${calculatedReorderPoint} units</strong>.` +
+            (p.override_active ? ` You are currently using your own value of <strong>${p.reorder_point} units</strong>.` : "");
+        input.value = p.reorder_point;
+        let resetButton = overrideForm.querySelector("button[value='reset']");
+        if (!resetButton && p.override_active) {
+            const col = document.createElement("div");
+            col.className = "col-sm-auto";
+            col.innerHTML = '<button class="btn btn-outline-secondary" type="submit" name="action" value="reset" formnovalidate>Use model value</button>';
+            overrideForm.appendChild(col);
+        } else if (resetButton) {
+            resetButton.parentElement.style.display = p.override_active ? "" : "none";
+        }
+
+        showMessage(reset
+            ? `Reorder point reset to the model's value (${p.reorder_point} units). Status: ${p.reorder_status}.`
+            : `Reorder point set to ${value} units. Status: ${p.reorder_status}.`);
+    } catch (error) {
+        showMessage(`Could not update reorder point: ${error.message}`, "danger");
+    }
+});
+</script>
+
 {% endblock %}

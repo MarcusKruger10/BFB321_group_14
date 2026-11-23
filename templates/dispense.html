@@ -72,4 +72,53 @@
         </div>
     </div>
 </section>
+
+
+<script src="{{ url_for('static', filename='js/api.js') }}"></script>
+<script>
+// B3.2: send the form to POST /api/stock/dispense and update the page without reloading
+const dispenseForm = document.querySelector("form[method='post']");
+const productSelect = document.getElementById("product");
+const recentTable = document.querySelector("table tbody");
+
+dispenseForm.addEventListener("submit", async (event) => {
+    event.preventDefault();                        // stop the normal page reload
+    clearMessages();
+    const button = dispenseForm.querySelector("button[type='submit']");
+    button.disabled = true;
+    try {
+        const productId = Number(productSelect.value);
+        const quantity = Number(document.getElementById("quantity").value);
+        const reference = document.getElementById("reference").value.trim();
+        const body = { product_id: productId, quantity: quantity };
+        if (reference) body.reference = reference;
+
+        const result = await apiRequest("POST", "/api/stock/dispense", body);
+        const p = result.product;
+
+        // Look up batch numbers so the table shows "B-2217" instead of an id
+        const batches = await apiRequest("GET", `/api/products/${productId}/batches?include_empty=true`);
+        const batchNumber = Object.fromEntries(batches.map(b => [b.batch_id, b.batch_number]));
+        result.allocations.forEach(a => addTableRow(recentTable, [
+            nowText(), productName(p), a.allocated_quantity,
+            batchNumber[a.batch_id] || a.batch_id, reference || "-"
+        ]));
+
+        updateProductOption(productSelect, p);
+        const used = result.allocations
+            .map(a => `${a.allocated_quantity} from batch ${batchNumber[a.batch_id] || a.batch_id}`).join(", ");
+        showMessage(`Dispensed ${quantity} units of ${p.name} (${used}). Stock now ${p.stock_on_hand} - status: ${p.reorder_status}.`);
+        if (p.reorder_status !== "Sufficient") {
+            showMessage(`Alert: ${p.name} is ${p.reorder_status}. Recommended order: ${p.recommended_order_qty} units.`, "warning");
+        }
+        document.getElementById("quantity").value = "";
+        document.getElementById("reference").value = "";
+    } catch (error) {
+        showMessage(`Could not dispense: ${error.message}`, "danger");
+    } finally {
+        button.disabled = false;
+    }
+});
+</script>
+
 {% endblock %}
