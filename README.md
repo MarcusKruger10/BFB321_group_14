@@ -50,3 +50,11 @@ The application is designed around three main objectives:
 
 ### Note
 This submission focuses on the front-end design of the Pharmaceutical Stock Level Tracker. Flask and backend functionality will be implemented in the Exam submission. No Flask installation or backend server is required to view the current front-end design. The login page is included as part of the user interface design; however, login authentication is not yet functional, as it requires Flask backend integration planned for the second submission. For this submission, please launch the application directly from dashboard.html rather than login.html.
+
+
+## Database design
+
+![Entity Relationship Diagram](database/erd.png)
+
+The MySQL schema is in `database/schema.sql` and demo data in `database/seed.sql`.
+Build both with `python init_db.py` (settings come from `.env`; copy `.env.example`).
