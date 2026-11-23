@@ -178,3 +178,78 @@ CREATE TABLE batches (
 CREATE INDEX ix_batches_product_expiry ON batches (product_id, expiry_date);
 CREATE INDEX ix_batches_expiry         ON batches (expiry_date);
 CREATE INDEX ix_batches_supplier       ON batches (supplier_id);
+
+CREATE TABLE stock_movements (
+    movement_id    BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    batch_id       INT UNSIGNED  NOT NULL,
+    movement_type  ENUM('receipt','dispense','adjustment_in','adjustment_out','expired_writeoff') NOT NULL,
+    quantity       INT UNSIGNED  NOT NULL,
+    reference      VARCHAR(60)   NULL,            -- script no., PO no., reason
+    user_id        INT UNSIGNED  NOT NULL,
+    moved_at       DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at     DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at     DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (movement_id),
+    CONSTRAINT fk_sm_batch FOREIGN KEY (batch_id)
+        REFERENCES batches (batch_id) ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_sm_user  FOREIGN KEY (user_id)
+        REFERENCES users (user_id)    ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT ck_sm_qty CHECK (quantity > 0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE INDEX ix_sm_type_date  ON stock_movements (movement_type, moved_at);
+CREATE INDEX ix_sm_batch_date ON stock_movements (batch_id, moved_at);
+CREATE INDEX ix_sm_user       ON stock_movements (user_id);
+
+CREATE TABLE alerts (
+    alert_id        INT UNSIGNED  NOT NULL AUTO_INCREMENT,
+    product_id      INT UNSIGNED  NOT NULL,
+    batch_id        INT UNSIGNED  NULL,           -- set for expiry alerts
+    alert_type      ENUM('low_stock','reorder','expiry_risk','expired') NOT NULL,
+    status          ENUM('open','acknowledged','resolved') NOT NULL DEFAULT 'open',
+    message         VARCHAR(255)  NOT NULL,
+    acknowledged_by INT UNSIGNED  NULL,
+    resolved_at     DATETIME      NULL,
+    created_at      DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at      DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (alert_id),
+    CONSTRAINT fk_alerts_product FOREIGN KEY (product_id)
+        REFERENCES products (product_id) ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fk_alerts_batch   FOREIGN KEY (batch_id)
+        REFERENCES batches (batch_id)    ON UPDATE CASCADE ON DELETE SET NULL,
+    CONSTRAINT fk_alerts_user    FOREIGN KEY (acknowledged_by)
+        REFERENCES users (user_id)       ON UPDATE CASCADE ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE INDEX ix_alerts_status_type ON alerts (status, alert_type);
+CREATE INDEX ix_alerts_product     ON alerts (product_id);
+
+CREATE VIEW v_product_stock AS
+SELECT
+    p.product_id,
+    p.sku,
+    p.name,
+    p.strength,
+    c.name                                         AS category,
+    p.pack_size,
+    p.unit_cost,
+    p.service_level,
+    p.reorder_point_override,
+    p.ordering_cost,
+    p.holding_cost_rate,
+    p.shelf_life_days,
+    COALESCE(SUM(b.quantity_on_hand), 0)           AS stock_on_hand,
+    MIN(CASE WHEN b.quantity_on_hand > 0 THEN b.expiry_date END) AS nearest_expiry,
+    COALESCE(SUM(b.quantity_on_hand * b.unit_cost), 0)          AS stock_value,
+    (SELECT ps.lead_time_days
+       FROM product_suppliers ps
+      WHERE ps.product_id = p.product_id
+      ORDER BY ps.is_preferred DESC, ps.lead_time_days
+      LIMIT 1)                                     AS lead_time_days
+FROM products p
+JOIN categories c      ON c.category_id = p.category_id
+LEFT JOIN batches b    ON b.product_id  = p.product_id
+WHERE p.is_active = TRUE
+GROUP BY p.product_id, p.sku, p.name, p.strength, c.name, p.pack_size, p.unit_cost,
+         p.service_level, p.reorder_point_override, p.ordering_cost,
+         p.holding_cost_rate, p.shelf_life_days;
