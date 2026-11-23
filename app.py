@@ -4,10 +4,9 @@ Run:  flask --app app run        (after: pip install -r requirements.txt,
                                   copy .env.example to .env, python init_db.py)
 """
 import logging
+from datetime import date
 
 from flask import Flask, abort, flash, redirect, render_template, request, url_for
-
-from datetime import date
 
 import db
 from api import api_bp
@@ -16,10 +15,10 @@ from config import get_config
 from models import inventory
 
 app = Flask(__name__)
-app.config.from_object(get_config())   
-db.init_app(app)                       
-app.register_blueprint(api_bp)         
-register_error_handlers(app)               
+app.config.from_object(get_config())   # settings from .env via config.py
+db.init_app(app)                       # closes the MySQL connection after every request
+app.register_blueprint(api_bp)         # B2: JSON API under /api
+register_error_handlers(app)           # B2: central error handling
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -70,7 +69,6 @@ def product_detail(product_id):
                            supplier=inventory.get_preferred_supplier(product_id))
 
 
-
 @app.route("/receive", methods=["GET", "POST"])
 def receive():
     """B3 Flow 1: receive a new batch, save to MySQL, show the new stock level."""
@@ -116,8 +114,6 @@ def receive():
                            recent=inventory.recent_receipts())
 
 
-
-
 @app.route("/dispense", methods=["GET", "POST"])
 def dispense():
     """B3 Flow 2: dispense stock FEFO, save to MySQL, show the result."""
@@ -143,30 +139,6 @@ def dispense():
     products, _ = inventory.list_products(limit=100)
     return render_template("dispense.html", products=products,
                            recent=inventory.recent_dispenses())
-
-
-@app.route("/alerts")
-def alerts():
-    """Open reorder / low-stock alerts, created automatically after dispense and receive."""
-    return render_template("alerts.html", alerts=inventory.list_alerts("open"))
-
-
-@app.route("/forecast")
-def forecast():
-    """Demand forecast for one product (models/demand.py), chosen from a dropdown."""
-    products, _ = inventory.list_products(limit=100)
-    selected_id = request.args.get("product_id", type=int) or (products[0]["product_id"] if products else None)
-    product = inventory.get_product(selected_id) if selected_id else None
-    result = inventory.demand_forecast(selected_id) if product else None
-    return render_template("forecast.html", products=products, product=product, forecast=result)
-
-
-@app.route("/expiry-risk")
-def expiry_risk():
-    """Batches classified as expired / expiring soon / fresh (models/expiry.py)."""
-    return render_template("expiry_risk.html", batches=inventory.expiry_batches(),
-                           kpis=inventory.dashboard_kpis())
-
 
 @app.route("/kpi")
 def kpi():
