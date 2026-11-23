@@ -39,14 +39,35 @@ def dashboard():
                            kpis=inventory.dashboard_kpis(), status=status)
 
 
-@app.route("/product/<int:product_id>")
+@app.route("/product/<int:product_id>", methods=["GET", "POST"])
 def product_detail(product_id):
-    """Drill-down: the product's model figures and its batches (FEFO order)."""
+    """B3 Flow 3: model-driven reorder recommendation + pharmacist override."""
     product = inventory.get_product(product_id)
     if product is None:
         abort(404)
+
+    if request.method == "POST":
+        try:
+            if request.form.get("action") == "reset":
+                override = None                     # go back to the model's reorder point
+            else:
+                override = int(request.form["reorder_point"])
+                if override < 0:
+                    raise ValueError("reorder point cannot be negative")
+            product = inventory.update_reorder_settings(product_id, reorder_point_override=override)
+            if override is None:
+                flash(f"Reorder point reset to the model's value ({product['reorder_point']} units). "
+                      f"Status: {product['reorder_status']}.", "success")
+            else:
+                flash(f"Reorder point set to {override} units. Status: {product['reorder_status']}.", "success")
+        except (ValueError, KeyError) as exc:
+            flash(f"Could not update reorder point: {exc}", "danger")
+        return redirect(url_for("product_detail", product_id=product_id))
+
     return render_template("product_detail.html", product=product,
-                           batches=inventory.get_product_batches(product_id))
+                           batches=inventory.get_product_batches(product_id),
+                           forecast=inventory.demand_forecast(product_id),
+                           supplier=inventory.get_preferred_supplier(product_id))
 
 
 
