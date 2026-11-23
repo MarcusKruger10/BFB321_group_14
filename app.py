@@ -7,6 +7,8 @@ import logging
 
 from flask import Flask, abort, flash, redirect, render_template, request, url_for
 
+from datetime import date
+
 import db
 from api import api_bp
 from api.errors import register_error_handlers
@@ -48,9 +50,51 @@ def product_detail(product_id):
 
 
 
-@app.route("/receive")
+@app.route("/receive", methods=["GET", "POST"])
 def receive():
-    return render_template("receive.html")
+    """B3 Flow 1: receive a new batch, save to MySQL, show the new stock level."""
+    if request.method == "POST":
+        try:
+            product_id = int(request.form["product_id"])
+            supplier_id = int(request.form["supplier_id"])
+            batch_number = request.form["batch_number"].strip()
+            quantity = int(request.form["quantity"])
+            expiry_date = date.fromisoformat(request.form["expiry_date"])
+            product = inventory.get_product(product_id)
+            if product is None:
+                raise ValueError("unknown product")
+            if not batch_number:
+                raise ValueError("batch number is required")
+            if quantity <= 0:
+                raise ValueError("quantity must be greater than 0")
+            if expiry_date <= date.today():
+                raise ValueError("expiry date must be in the future")
+            # Unit cost from the form, or the product's normal cost if left blank
+            unit_cost = float(request.form.get("unit_cost") or product["unit_cost"])
+
+            inventory.receive_stock(product_id, supplier_id, batch_number, expiry_date,
+                                    quantity, unit_cost, user_id=1)
+            product = inventory.get_product(product_id)   # reload to get the new stock level
+            flash(f"Received {quantity} units of {product['name']} (batch {batch_number}, "
+                  f"expires {expiry_date}). Stock now {product['stock_on_hand']} - "
+                  f"status: {product['reorder_status']}.", "success")
+        except ValueError as exc:
+            flash(f"Could not receive stock: {exc}", "danger")
+        except Exception as exc:
+            # e.g. the same batch number already exists for this product
+            if "Duplicate" in str(exc):
+                flash("Could not receive stock: that batch number already exists for this product.", "danger")
+            else:
+                app.logger.exception("Receive failed")
+                flash("Could not receive stock: unexpected error, please try again.", "danger")
+        return redirect(url_for("receive"))
+
+    products, _ = inventory.list_products(limit=100)
+    return render_template("receive.html", products=products,
+                           suppliers=inventory.list_suppliers(),
+                           recent=inventory.recent_receipts())
+
+
 
 
 @app.route("/dispense", methods=["GET", "POST"])

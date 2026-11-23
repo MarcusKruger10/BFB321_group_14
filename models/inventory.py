@@ -356,3 +356,23 @@ def recent_dispenses(limit=10):
            LIMIT %s""",
         (limit,),
     )
+
+def list_suppliers():
+    """Active suppliers for the Receive Stock dropdown."""
+    return query(
+        "SELECT supplier_id, name FROM suppliers WHERE is_active = TRUE ORDER BY name"
+    )
+
+
+def recent_receipts(limit=10):
+    """Latest stock receipts for the Receive Stock page, newest first."""
+    return query(
+        """SELECT b.received_at, p.name, p.strength, b.batch_number,
+                  b.quantity_received, b.expiry_date, s.name AS supplier
+           FROM batches b
+           JOIN products p  ON p.product_id = b.product_id
+           JOIN suppliers s ON s.supplier_id = b.supplier_id
+           ORDER BY b.received_at DESC, b.batch_id DESC
+           LIMIT %s""",
+        (limit,),
+    )
