@@ -73,16 +73,22 @@ https://github.com/MarcusKruger10/BFB321_group_14
 
 ## 6. Installation and Setup Instructions
 
-### 6.1 Requirements
+The Pharmaceutical Stock Level Tracker requires a running Flask
+application and a MySQL database. The following instructions explain
+how to install, configure and run the application on a local computer.
 
-Ensure that the following software is installed:
+### 6.1 Software Requirements
+
+Ensure that the following software is installed before proceeding:
 
 - Python 3
-- pip (Python package manager)
 - MySQL Server
+- MySQL Workbench (recommended for database management)
 - Git
 - Visual Studio Code or an equivalent code editor
 - A modern web browser, such as Google Chrome or Microsoft Edge
+
+Python, Git and MySQL Server must be installed before running the application.
 
 ### 6.2 Clone the Repository
 
@@ -93,41 +99,49 @@ git clone https://github.com/MarcusKruger10/BFB321_group_14.git
 cd BFB321_group_14
 ```
 
-Alternatively, clone the repository through Visual Studio Code using the Git: Clone command in the Command Palette (`Ctrl + Shift + P`).
+Alternatively, clone the repository using Visual Studio Code:
 
-### 6.3 Create a Virtual Environment
+1. Open Visual Studio Code.
+2. Open the Command Palette using `Ctrl + Shift + P`.
+3. Select `Git: Clone`.
+4. Enter the repository URL.
+5. Select a location on your computer.
+6. Open the cloned project folder.
 
-Create a Python virtual environment:
+All subsequent terminal commands must be executed from the
+main `BFB321_group_14` project directory.
 
-```bash
-python -m venv .venv
-```
+### 6.3 Install Python Dependencies
 
-Activate the virtual environment.
-
-Windows PowerShell:
-
-```powershell
-.venv\Scripts\Activate.ps1
-```
-
-macOS or Linux:
-
-```bash
-source .venv/bin/activate
-```
-
-### 6.4 Install Dependencies
-
-Install the required Python packages:
+Open the integrated terminal in Visual Studio Code and run:
 
 ```bash
 python -m pip install -r requirements.txt
 ```
 
+This installs the required Python packages, including Flask,
+PyMySQL, cryptography, python-dotenv and Pytest.
+
+An optional Python virtual environment may also be used to
+isolate the project dependencies.
+
+### 6.4 Configure MySQL
+
+Ensure that MySQL Server is running.
+
+Open MySQL Workbench and connect to your local MySQL instance
+using your MySQL username and password.
+
+The project database does not need to be created manually.
+The provided database initialisation script will create it
+in a subsequent step.
+
 ### 6.5 Configure Environment Variables
 
-Create a local `.env` file using the provided `.env.example` template.
+The repository includes an `.env.example` file containing
+the required application and database configuration settings.
+
+Create a local copy of this file named `.env`.
 
 Windows PowerShell:
 
@@ -141,44 +155,212 @@ macOS or Linux:
 cp .env.example .env
 ```
 
-Open the `.env` file and configure the database connection settings according to the local MySQL installation.
+If an `.env` file already exists, review its settings rather
+than overwriting it unnecessarily.
 
-Ensure that:
+Open the `.env` file and configure the following settings:
 
-- MySQL Server is running.
-- The database credentials are correct.
-- The configured MySQL user has the required database permissions.
-- The appropriate Flask environment is selected.
+```env
+FLASK_ENV=development
+SECRET_KEY=replace-with-a-long-random-string
 
-The `.env` file contains local configuration information and should not be committed to GitHub.
+# MySQL connection
+DB_HOST=localhost
+DB_PORT=3306
+DB_USER=root
+DB_PASSWORD=YOUR_MYSQL_PASSWORD
+DB_NAME=pharmacy_tracker
+
+# Separate database used by pytest
+TEST_DB_NAME=pharmacy_tracker_test
+```
+
+Replace `YOUR_MYSQL_PASSWORD` with the password used to
+connect to your local MySQL Server.
+
+Replace the secret key placeholder with a locally generated
+random secret key.
+
+For local demonstration purposes, the existing MySQL root
+account may be used to initialise and run the database.
+
+Alternatively, a dedicated MySQL user, such as `pharma_app`,
+may be used if the account has already been created and
+granted the required database permissions.
+
+Important:
+
+- Edit `.env`, not `.env.example`.
+- Use your own local MySQL credentials.
+- Ensure that the configured MySQL user has permission to
+  create and access the project database.
+- Do not commit the `.env` file to GitHub.
+- The `.env` file is excluded from version control through
+  the `.gitignore` file.
 
 ### 6.6 Initialise the Database
 
-For a new local development or demonstration database, execute:
+Once the MySQL connection settings have been configured,
+execute the following command:
 
 ```bash
 python init_db.py
 ```
 
-This script uses the database schema and demonstration data provided in the `database/` directory.
+This command automatically:
 
-Do not initialise an existing database containing important records without reviewing the initialisation script and creating a backup.
+1. Creates the `pharmacy_tracker` database if it does not exist.
+2. Executes the schema defined in `database/schema.sql`.
+3. Creates the required database tables and views.
+4. Loads demonstration data from `database/seed.sql`.
 
-### 6.7 Run the Application
+A successful database initialisation should produce output
+similar to the following:
 
-Start the Flask application:
-
-```bash
-python app.py
+```text
+Database: pharmacy_tracker
+  ran  39 statements from database/schema.sql
+  ran  17 statements from database/seed.sql
+Done: 12 products, 44 batches, 1743 stock_movements, 6 alerts
 ```
 
-Open the following address in a web browser:
+The exact record counts may differ if the demonstration
+dataset is updated.
+
+WARNING: The database initialisation script drops and
+recreates the project database tables. Running this command
+again will remove existing project data and restore the
+demonstration dataset.
+
+Only initialise the database when setting up the application
+for the first time or when intentionally resetting the
+demonstration data. Back up existing data if necessary.
+
+To initialise the database without demonstration data:
+
+```bash
+python init_db.py --no-seed
+```
+
+For assessment and demonstration purposes, the standard
+initialisation command with demonstration data is recommended.
+
+### 6.7 Start the Flask Application
+
+After successfully initialising the database, execute:
+
+```bash
+python -m flask --app app run --debug
+```
+
+The terminal should display:
+
+```text
+ * Serving Flask app 'app'
+ * Debug mode: on
+ * Running on http://127.0.0.1:5000
+```
+
+Keep the terminal running while using the application.
+
+### 6.8 Open the Web Application
+
+Open a web browser and enter the following address directly
+into the address bar:
 
 http://127.0.0.1:5000
 
-The application must be accessed through the Flask server to enable communication between the frontend, backend and MySQL database.
+The Pharmaceutical Stock Level Tracker dashboard should open,
+displaying the demonstration inventory data.
 
-Live Server is not required for the final submission.
+The application can then be explored using the navigation menu.
+
+Available functionality includes:
+
+- Inventory dashboard.
+- Product details.
+- Stock receipt.
+- Stock dispensing.
+- Replenishment alerts.
+- Demand forecasting.
+- Expiry risk management.
+- Supply chain KPI dashboard.
+- Before-and-after performance comparisons.
+
+The KPI dashboard and impact evaluation can also be accessed
+directly at:
+
+http://127.0.0.1:5000/kpi
+
+IMPORTANT: Do not use the Visual Studio Code Live Server
+extension or open the HTML template files directly.
+
+The application requires Flask to render the templates,
+execute the supply chain calculations and communicate
+with the MySQL database.
+
+The correct application address uses port 5000, not port 5500.
+
+### 6.9 Stop the Application
+
+To stop the Flask development server, return to the terminal
+and press:
+
+`Ctrl + C`
+
+### 6.10 Running the Application Again
+
+After the initial setup has been completed, it is not
+necessary to reinstall the dependencies or initialise the
+database each time the application is opened.
+
+Ensure that MySQL Server is running, open the project folder
+in Visual Studio Code and execute:
+
+```bash
+python -m flask --app app run --debug
+```
+
+Then open:
+
+http://127.0.0.1:5000
+
+### 6.11 Troubleshooting
+
+| Problem | Possible Cause | Recommended Solution |
+|---|---|---|
+| `ModuleNotFoundError` | Required Python dependencies are missing | Run `python -m pip install -r requirements.txt` |
+| MySQL error 1045: Access denied | Incorrect MySQL username or password | Check the database credentials in `.env` |
+| `using password: NO` | The MySQL password is missing or the `.env` file is not being loaded | Ensure that `.env` exists in the project directory and contains the correct password |
+| MySQL error 2003: Cannot connect | MySQL Server is not running or the connection settings are incorrect | Start MySQL Server and check the host and port |
+| Unknown database | Project database has not been initialised | Run `python init_db.py` for a new installation |
+| HTTP 503: Database unavailable | Flask cannot establish a database connection | Check MySQL Server, database credentials and database initialisation |
+| HTTP 404: Page not found | Incorrect application URL, outdated repository or Live Server being used | Start the Flask server and access port 5000 |
+| HTML displays incorrectly | HTML templates are being opened directly | Access the application through Flask |
+| Recent changes are missing | An outdated repository version is being used | Pull the latest changes from GitHub |
+| Port 5000 already in use | Another application or Flask instance is running | Stop the existing server before restarting Flask |
+
+To update an existing local repository, execute:
+
+```bash
+git pull origin main
+```
+
+Ensure that any uncommitted local changes are reviewed
+before pulling updates.
+
+The Flask server should be restarted after updating the
+repository if necessary.
+
+### 6.12 Development and Deployment Note
+
+The Flask development server is intended for local development,
+academic assessment and demonstration purposes.
+
+A production deployment would require a production-ready
+WSGI server, secure configuration, appropriate database
+permissions, authentication, HTTPS and additional security
+and performance assessments.
 
 ## 7. Database Design
 
