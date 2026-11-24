@@ -545,6 +545,10 @@ The Pharmaceutical Stock Level Tracker is designed to support improvements in ph
 
 These benefits represent the intended outcomes of the application. Quantitative improvements must be evaluated using controlled testing, demonstration data or clearly documented estimates before being presented as measured results.
 
+For the detailed KPI evaluation methodology, scenario assumptions,
+sustainability and scalability discussion, see
+[Impact, Sustainability and Scalability](docs/impact.md).
+
 ## 13. Sustainability and Scalability
 
 The application supports future development through its modular architecture and relational database design.
