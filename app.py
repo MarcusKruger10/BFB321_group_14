@@ -140,6 +140,30 @@ def dispense():
     return render_template("dispense.html", products=products,
                            recent=inventory.recent_dispenses())
 
+@app.route("/alerts")
+def alerts():
+    """Open reorder / low-stock alerts, created automatically after dispense and receive."""
+    return render_template("alerts.html", alerts=inventory.list_alerts("open"))
+
+
+@app.route("/forecast")
+def forecast():
+    """Demand forecast for one product (models/demand.py), chosen from a dropdown."""
+    products, _ = inventory.list_products(limit=100)
+    selected_id = request.args.get("product_id", type=int) or (products[0]["product_id"] if products else None)
+    product = inventory.get_product(selected_id) if selected_id else None
+    result = inventory.demand_forecast(selected_id) if product else None
+    return render_template("forecast.html", products=products, product=product, forecast=result)
+
+
+@app.route("/expiry-risk")
+def expiry_risk():
+    """Batches classified as expired / expiring soon / fresh (models/expiry.py)."""
+    return render_template("expiry_risk.html", batches=inventory.expiry_batches(),
+                           kpis=inventory.dashboard_kpis())
+
+
+
 @app.route("/kpi")
 def kpi():
     """B3.3: KPIs calculated from live MySQL data and the supply chain models."""
