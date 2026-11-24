@@ -1,6 +1,27 @@
+# Python virtual environments
 venv/
+.venv/
+
+# Python generated files
 __pycache__/
 *.pyc
+*.pyo
+
+# Sensitive environment configuration
 .env
+!.env.example
+
+# Testing and coverage files
 .pytest_cache/
+.coverage
+htmlcov/
+
+# IDE configuration
 .vscode/
+
+# Operating system files
+.DS_Store
+Thumbs.db
+
+# Application log files
+*.log
