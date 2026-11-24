@@ -173,8 +173,12 @@ def kpi():
     impact_results = calculate_impact()
     products, _ = inventory.list_products(limit=100)
     to_restock = [p for p in products if p["reorder_status"] != "Sufficient"]
-    return render_template("kpi.html", kpis=kpis, to_restock=to_restock)
-
+    return render_template(
+    "kpi.html",
+    kpis=kpis,
+    to_restock=to_restock,
+    impact_results=impact_results
+)
 
 @app.route("/login")
 def login():
