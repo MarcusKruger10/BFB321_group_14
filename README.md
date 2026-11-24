@@ -49,10 +49,10 @@ The application includes the following functionality:
 |---|---|---|---|
 | Marcus Kruger | u23561310 | MarcusKruger10 | B1 – Data Model & Database Integration |
 | Melissa du Plessis | u04467729 | MelissaDP-uni | B2 – Backend & API |
-| Rebecca Tejessy | u22570111 | RebeccaTej | B3 – Frontend & Features; B4 – Deployment & Operations |
+| Rebecca Tejessy | u22570111 | RebeccaTej | B3 – Frontend & Features |
 | Cara Dalporto | u22655809 | CaraDalporto | B5 – Impact, Sustainability & Professionalism; B6 – Team Collaboration & Git Contribution; B7 – Folder Structure & Code Quality |
 
-The project was developed collaboratively using Git and GitHub for version control. Individual contributions and development progress are documented through the repository's commit history.
+B4 – Deployment & Operations was a shared group responsibility. The project was developed collaboratively using Git and GitHub for version control. Individual contributions and development progress are documented through the repository's commit history.
 
 Repository:
 https://github.com/MarcusKruger10/BFB321_group_14
@@ -124,6 +124,32 @@ PyMySQL, cryptography, python-dotenv and Pytest.
 
 An optional Python virtual environment may also be used to
 isolate the project dependencies.
+
+#### Optional Virtual Environment
+
+Create an isolated Python environment:
+
+```bash
+python -m venv .venv
+```
+
+Activate the environment on Windows PowerShell:
+
+```powershell
+.venv\Scripts\Activate.ps1
+```
+
+On macOS or Linux:
+
+```bash
+source .venv/bin/activate
+```
+
+Install the required dependencies:
+
+```bash
+python -m pip install -r requirements.txt
+```
 
 ### 6.4 Configure MySQL
 
@@ -361,6 +387,75 @@ A production deployment would require a production-ready
 WSGI server, secure configuration, appropriate database
 permissions, authentication, HTTPS and additional security
 and performance assessments.
+
+### 6.13 Database Backup, Restore and Rollback
+
+The application provides a repeatable database setup and
+reset procedure through `init_db.py`.
+
+Before modifying the database schema or resetting existing
+data, a backup should be created.
+
+#### Database Backup
+
+Ensure that the MySQL command-line utilities are installed
+and available in the terminal.
+
+```bash
+mysqldump -u root -p --result-file=backup.sql pharmacy_tracker
+```
+
+Enter your local MySQL password when prompted.
+
+Store the backup securely outside the shared Git repository.
+
+#### Database Restore
+
+If a database modification fails or existing data needs
+to be recovered, stop the Flask application.
+
+Open MySQL Workbench, select the appropriate project database,
+and import the previously created backup using the Data Import
+functionality.
+
+Alternatively, from the MySQL command-line client:
+
+```sql
+USE pharmacy_tracker;
+SOURCE backup.sql;
+```
+
+Use the full path to the backup file if necessary.
+
+Verify that the restored tables and records are correct
+before restarting the application.
+
+#### Rollback Procedure
+
+If a database or application update fails:
+
+1. Stop the Flask application.
+2. Review the terminal logs to identify the error.
+3. Restore the database from the most recent valid backup
+   if the database structure or data was affected.
+4. Revert the relevant application changes using Git.
+5. Confirm that the application version and database schema
+   are compatible.
+6. Restart the application and verify its functionality.
+
+Failed transactional database writes are rolled back through
+the database transaction management functionality.
+
+For a demonstration database containing no important
+operational records, the original dataset can be restored
+using:
+
+```bash
+python init_db.py
+```
+
+WARNING: This reset command removes existing project data.
+It is not a substitute for restoring a backup.
 
 ## 7. Database Design
 
