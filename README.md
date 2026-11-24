@@ -893,3 +893,15 @@ Individual contributions can be reviewed through the GitHub repository's commit 
 This application was developed by Group 14 as part of the BFB321 Supply Chain Web Application Project at the University of Pretoria in 2026.
 
 The project demonstrates the practical integration of supply chain management principles, inventory control models, relational databases, backend development and web-based decision-support systems.
+
+## Academic Integrity
+
+The final project report was submitted to Turnitin for
+similarity verification.
+
+- Turnitin similarity score: 3%
+- Maximum permitted similarity score: 15%
+- Status: Compliant
+
+The official Turnitin similarity report is included in
+the final submission documentation.
