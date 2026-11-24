@@ -99,4 +99,143 @@
         </div>
     </div>
 </section>
+<!-- B5: Before and after implementation comparison -->
+<section class="impact-section">
+
+    <h2>Before vs After Implementation</h2>
+
+    <p class="impact-description">
+        This section evaluates the potential impact of the
+        Pharmaceutical Stock Level Tracker through controlled
+        inventory management and demand forecasting scenarios.
+        Lower KPI values indicate better performance.
+    </p>
+
+    <div class="impact-notice">
+        <strong>Evaluation methodology:</strong>
+        The results are calculated using illustrative scenario
+        data under consistent conditions. They represent
+        simulated improvements rather than measured results
+        from an operational pharmacy.
+    </div>
+
+    <h3>Performance Comparison</h3>
+
+    <div class="impact-table-wrapper">
+        <table class="impact-table">
+            <thead>
+                <tr>
+                    <th>Key Performance Indicator</th>
+                    <th>Before</th>
+                    <th>After</th>
+                    <th>Reduction (%)</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                {% for item in impact_results %}
+                <tr>
+                    <td>{{ item.name }}</td>
+                    <td>{{ item.before }} {{ item.unit }}</td>
+                    <td>{{ item.after }} {{ item.unit }}</td>
+                    <td>
+                        {% if item.improvement is none %}
+                            N/A
+                        {% elif item.improvement > 0 %}
+                            <span class="impact-positive">
+                                {{ item.improvement }}%
+                            </span>
+                        {% elif item.improvement < 0 %}
+                            <span class="impact-negative">
+                                {{ item.improvement }}%
+                            </span>
+                        {% else %}
+                            0%
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <p class="impact-caption">
+        Table 1: Simulated inventory performance before and
+        after the introduction of the proposed inventory
+        management methods.
+    </p>
+
+    <h3>Visual Performance Comparison</h3>
+
+    <div class="impact-legend">
+        <span class="legend-before">Before implementation</span>
+        <span class="legend-after">After implementation</span>
+    </div>
+
+    <div class="impact-charts">
+
+        {% for item in impact_results %}
+
+        {% set maximum = [item.before, item.after, 1] | max %}
+
+        <div class="impact-chart-card">
+
+            <h4>{{ item.name }}</h4>
+
+            <p>{{ item.description }}</p>
+
+            <div class="impact-bar-row">
+                <span>Before</span>
+
+                <div class="impact-bar-track">
+                    <div class="impact-bar-before"
+                         style="width: {{ item.before / maximum * 100 }}%;">
+                    </div>
+                </div>
+
+                <strong>{{ item.before }}</strong>
+            </div>
+
+            <div class="impact-bar-row">
+                <span>After</span>
+
+                <div class="impact-bar-track">
+                    <div class="impact-bar-after"
+                         style="width: {{ item.after / maximum * 100 }}%;">
+                    </div>
+                </div>
+
+                <strong>{{ item.after }}</strong>
+            </div>
+
+        </div>
+
+        {% endfor %}
+
+    </div>
+
+    <p class="impact-caption">
+        Figure 1: Comparison of simulated KPI results under
+        baseline and proposed inventory management methods.
+        Each chart is scaled independently.
+    </p>
+
+    <h3>Interpretation of Results</h3>
+
+    <p>
+        Proactive replenishment can reduce unfulfilled demand
+        by initiating orders before inventory is depleted.
+        FEFO dispensing can reduce pharmaceutical expiry
+        by prioritising batches with the earliest expiry dates.
+        Moving average forecasting can reduce forecast error
+        when demand fluctuates around a relatively stable level.
+    </p>
+
+    <p>
+        Actual improvements will depend on demand variability,
+        supplier reliability, inventory accuracy and the
+        operating conditions of each pharmacy.
+    </p>
+
+</section>
 {% endblock %}

@@ -6,6 +6,8 @@ Run:  flask --app app run        (after: pip install -r requirements.txt,
 import logging
 from datetime import date
 
+from models.impact import calculate_impact
+
 from flask import Flask, abort, flash, redirect, render_template, request, url_for
 
 import db
@@ -168,6 +170,7 @@ def expiry_risk():
 def kpi():
     """B3.3: KPIs calculated from live MySQL data and the supply chain models."""
     kpis = inventory.dashboard_kpis()
+    impact_results = calculate_impact()
     products, _ = inventory.list_products(limit=100)
     to_restock = [p for p in products if p["reorder_status"] != "Sufficient"]
     return render_template("kpi.html", kpis=kpis, to_restock=to_restock)
